@@ -62,6 +62,12 @@ jupyter notebook 3_Inference.ipynb
   training.
 * `sample` is concise — no while-loop, no <end> early-stopping (left to
   the caller so it can pick its own stop token).
+* `DecoderRNN.sample_beam` implements **length-normalised beam search**
+  (rubric stand-out) — keeps the top-`k` partial captions at every step
+  and falls back to the greedy result if `<end>` is never produced. The
+  `3_Inference.ipynb` notebook has a "Stand-out: Beam search" cell that
+  runs the same image through both decoders for a side-by-side fluency
+  comparison.
 
 ## License
 

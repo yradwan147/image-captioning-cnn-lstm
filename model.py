@@ -74,3 +74,69 @@ class DecoderRNN(nn.Module):
             predicted_sentence.append(int(predicted.item()))
             inputs = self.embed(predicted).unsqueeze(1)          # (1, 1, E)
         return predicted_sentence
+
+    def sample_beam(self, inputs, beam_width=5, max_len=20, end_idx=None):
+        """Beam-search decoding from the image feature.
+
+        Keeps the `beam_width` highest-log-probability partial captions at
+        every time step instead of committing to the argmax token (greedy).
+        Beam search typically produces noticeably more fluent captions on
+        image-captioning benchmarks — at the cost of `beam_width`× the
+        decoder compute.
+
+        Parameters
+        ----------
+        inputs : torch.Tensor
+            The image embedding shaped (1, 1, embed_size) — i.e. the
+            `unsqueeze(1)` output of `EncoderCNN`.
+        beam_width : int
+            Number of partial hypotheses to keep at every step.
+        max_len : int
+            Hard cap on caption length (acts as an additional stop
+            criterion in case `<end>` is never produced).
+        end_idx : int or None
+            Vocabulary index of `<end>`. If supplied, beams ending in
+            `<end>` are finalised early and removed from the live frontier.
+
+        Returns
+        -------
+        list[int]
+            The token indices of the best (highest-score) caption.
+        """
+        device = inputs.device
+        # Each beam: (token_list, log_prob, lstm_states, last_input)
+        beams = [([], 0.0, None, inputs)]
+        finished = []
+
+        for _ in range(max_len):
+            candidates = []
+            for tokens, score, states, inp in beams:
+                hiddens, new_states = self.lstm(inp, states)            # (1, 1, H)
+                logits = self.linear(hiddens.squeeze(1))                # (1, V)
+                log_probs = torch.log_softmax(logits, dim=-1).squeeze(0)  # (V,)
+                topk_lp, topk_idx = log_probs.topk(beam_width)
+                for lp, idx in zip(topk_lp.tolist(), topk_idx.tolist()):
+                    new_tokens = tokens + [idx]
+                    new_score  = score + lp
+                    new_inp    = self.embed(
+                        torch.tensor([idx], device=device)
+                    ).unsqueeze(1)
+                    candidates.append((new_tokens, new_score, new_states, new_inp))
+
+            # Keep the top-`beam_width` candidates overall.
+            candidates.sort(key=lambda b: b[1], reverse=True)
+            beams = []
+            for cand in candidates[:beam_width]:
+                tokens, score, _, _ = cand
+                if end_idx is not None and tokens[-1] == end_idx:
+                    finished.append((tokens, score))
+                else:
+                    beams.append(cand)
+            if not beams:
+                break
+
+        finished.extend((toks, sc) for toks, sc, _, _ in beams)
+        # Length-normalised score so beam search doesn't unfairly prefer
+        # short hypotheses (a common beam-search pitfall).
+        finished.sort(key=lambda ts: ts[1] / max(len(ts[0]), 1), reverse=True)
+        return finished[0][0]
