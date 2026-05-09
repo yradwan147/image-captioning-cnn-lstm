@@ -4,3 +4,9 @@ __pycache__/
 .ipynb_checkpoints/
 models/*.pkl
 *.pkl
+
+# Allow the trained encoder/decoder + vocab to be committed
+!vocab.pkl
+!models/encoder-3.pkl
+!models/decoder-3.pkl
+!models/

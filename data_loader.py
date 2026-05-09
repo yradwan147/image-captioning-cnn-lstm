@@ -90,7 +90,7 @@ def get_loader(transform, mode='train',
                unk_word="<unk>", 
                vocab_from_file=True, 
                num_workers=0, 
-               cocoapi_loc='/opt', 
+               cocoapi_loc='/tmp/coco', 
                subset_size=None):
     
     assert mode in ['train', 'test'], "mode must be one of 'train' or 'test'."
